@@ -34,90 +34,101 @@
 #include "openmm/OpenMMException.h"
 #include "openmm/internal/AssertionUtilities.h"
 #include <fstream>
-#include <torch/torch.h>
 #include <torch/csrc/jit/serialization/import.h>
+#include <torch/torch.h>
 
 using namespace TorchPlugin;
 using namespace OpenMM;
 using namespace std;
 
-TorchForce::TorchForce(const torch::jit::Module& module, const map<string, string>& properties) : file(), usePeriodic(false), outputsForces(false), module(module) {
-    const std::map<std::string, std::string> defaultProperties = {{"useCUDAGraphs", "false"}, {"CUDAGraphWarmupSteps", "10"}};
-    this->properties = defaultProperties;
-    for (auto& property : properties) {
-        if (defaultProperties.find(property.first) == defaultProperties.end())
-            throw OpenMMException("TorchForce: Unknown property '" + property.first + "'");
-        this->properties[property.first] = property.second;
-    }
+TorchForce::TorchForce(const torch::jit::Module &module,
+                       const map<string, string> &properties)
+    : file(), usePeriodic(false), outputsForces(false), module(module) {
+  const std::map<std::string, std::string> defaultProperties = {
+      {"useCUDAGraphs", "false"}, {"CUDAGraphWarmupSteps", "10"}};
+  this->properties = defaultProperties;
+  for (auto &property : properties) {
+    if (defaultProperties.find(property.first) == defaultProperties.end())
+      throw OpenMMException("TorchForce: Unknown property '" + property.first +
+                            "'");
+    this->properties[property.first] = property.second;
+  }
 }
 
-TorchForce::TorchForce(const std::string& file, const map<string, string>& properties) : TorchForce(torch::jit::load(file), properties) {
-    this->file = file;
+TorchForce::TorchForce(const std::string &file,
+                       const map<string, string> &properties)
+    : TorchForce(torch::jit::load(file), properties) {
+  this->file = file;
 }
 
-const string& TorchForce::getFile() const {
-    return file;
-}
+const string &TorchForce::getFile() const { return file; }
 
-const torch::jit::Module& TorchForce::getModule() const {
-    return this->module;
-}
+const torch::jit::Module &TorchForce::getModule() const { return this->module; }
 
-ForceImpl* TorchForce::createImpl() const {
-    return new TorchForceImpl(*this);
-}
+ForceImpl *TorchForce::createImpl() const { return new TorchForceImpl(*this); }
 
 void TorchForce::setUsesPeriodicBoundaryConditions(bool periodic) {
-    usePeriodic = periodic;
+  usePeriodic = periodic;
 }
 
-bool TorchForce::usesPeriodicBoundaryConditions() const {
-    return usePeriodic;
-}
+bool TorchForce::usesPeriodicBoundaryConditions() const { return usePeriodic; }
 
 void TorchForce::setOutputsForces(bool outputsForces) {
-    this->outputsForces = outputsForces;
+  this->outputsForces = outputsForces;
 }
 
-bool TorchForce::getOutputsForces() const {
-    return outputsForces;
-}
+bool TorchForce::getOutputsForces() const { return outputsForces; }
 
-int TorchForce::addGlobalParameter(const string& name, double defaultValue) {
-    globalParameters.push_back(GlobalParameterInfo(name, defaultValue));
-    return globalParameters.size() - 1;
+int TorchForce::addGlobalParameter(const string &name, double defaultValue) {
+  globalParameters.push_back(GlobalParameterInfo(name, defaultValue));
+  return globalParameters.size() - 1;
 }
 
 int TorchForce::getNumGlobalParameters() const {
-    return globalParameters.size();
+  return globalParameters.size();
 }
 
-const string& TorchForce::getGlobalParameterName(int index) const {
-    ASSERT_VALID_INDEX(index, globalParameters);
-    return globalParameters[index].name;
+const string &TorchForce::getGlobalParameterName(int index) const {
+  ASSERT_VALID_INDEX(index, globalParameters);
+  return globalParameters[index].name;
 }
 
-void TorchForce::setGlobalParameterName(int index, const string& name) {
-    ASSERT_VALID_INDEX(index, globalParameters);
-    globalParameters[index].name = name;
+void TorchForce::setGlobalParameterName(int index, const string &name) {
+  ASSERT_VALID_INDEX(index, globalParameters);
+  globalParameters[index].name = name;
 }
 
 double TorchForce::getGlobalParameterDefaultValue(int index) const {
-    ASSERT_VALID_INDEX(index, globalParameters);
-    return globalParameters[index].defaultValue;
+  ASSERT_VALID_INDEX(index, globalParameters);
+  return globalParameters[index].defaultValue;
 }
 
-void TorchForce::setGlobalParameterDefaultValue(int index, double defaultValue) {
-    ASSERT_VALID_INDEX(index, globalParameters);
-    globalParameters[index].defaultValue = defaultValue;
+void TorchForce::setGlobalParameterDefaultValue(int index,
+                                                double defaultValue) {
+  ASSERT_VALID_INDEX(index, globalParameters);
+  globalParameters[index].defaultValue = defaultValue;
 }
 
-void TorchForce::setProperty(const std::string& name, const std::string& value) {
-    if (properties.find(name) == properties.end())
-        throw OpenMMException("TorchForce: Unknown property '" + name + "'");
-    properties[name] = value;
+void TorchForce::addEnergyParameterDerivative(const string &name) {
+  for (int i = 0; i < globalNames.size(); i++) {
+    if (name == globalNames[i].name) {
+      energyParameterDerivatives.push_back(i);
+    }
+  }
 }
 
-const std::map<std::string, std::string>& TorchForce::getProperties() const {
-    return properties;
+const string &TorchForce::getEnergyParameterDerivativeName(int index) const {
+  ASSERT_VALID_INDEX(index, energyParameterDerivatives);
+  return globalParameters[energyParameterDerivatives[index]].name;
+}
+
+void TorchForce::setProperty(const std::string &name,
+                             const std::string &value) {
+  if (properties.find(name) == properties.end())
+    throw OpenMMException("TorchForce: Unknown property '" + name + "'");
+  properties[name] = value;
+}
+
+const std::map<std::string, std::string> &TorchForce::getProperties() const {
+  return properties;
 }
